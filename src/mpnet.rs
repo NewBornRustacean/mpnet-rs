@@ -77,17 +77,18 @@ use serde_json::from_reader;
 /// ```
 pub fn load_model(path_to_check_points_folder:String) -> Result<(MPNetModel, Tokenizer, MPNetPooler)>{
     // Construct the paths to the weight and tokenizer files
-    let path_to_modelbin = Path::new(&path_to_check_points_folder).join("pytorch_model.bin");
+    let path_to_safetensors = Path::new(&path_to_check_points_folder).join("model.safetensors");
     let path_to_tokenizer = Path::new(&path_to_check_points_folder).join("tokenizer.json");
     let path_to_config = Path::new(&path_to_check_points_folder).join("config.json");
 
     // Ensure the paths exist
-    if !path_to_modelbin.exists() || !path_to_tokenizer.exists() || !path_to_config.exists(){
+    if !path_to_safetensors.exists() || !path_to_tokenizer.exists() || !path_to_config.exists(){
         Err::<MPNetModel, _>(io::Error::new(io::ErrorKind::NotFound, "The specified paths do not exist."));
     }
-
-    let vb= VarBuilder::from_pth(&path_to_modelbin, DType::F32, &Device::Cpu)?;
+    let weights = candle_core::safetensors::load(&path_to_safetensors, &Device::Cpu)?;
+    let vb = VarBuilder::from_tensors(weights, DType::F32, &Device::Cpu);
     let config = MPNetConfig::load(&path_to_config)?;
+
     let tokenizer = Tokenizer::from_file(path_to_tokenizer).unwrap();
     let pooler=MPNetPooler::load(vb.clone(), &PoolingConfig::default())?;
     let model = MPNetModel::load(vb, &config)?;
