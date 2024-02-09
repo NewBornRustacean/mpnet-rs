@@ -96,10 +96,9 @@ fn test_create_position_ids_from_input_ids() -> candle_core::Result<()> {
 
     let position_ids = create_position_ids_from_input_ids(&input_ids, embeddings_module.padding_idx)?;
 
-    let expected_tensor = &[[2u8, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]];
+    let expected_tensor = &[[2u32, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]];
 
-    println!("position_ids: {:?}", position_ids);
-    // assert_eq!(position_ids.to_vec2::<u8>()?, expected_tensor);
+    assert_eq!(position_ids.to_vec2::<u32>()?, expected_tensor);
     Ok(())
 }
 
