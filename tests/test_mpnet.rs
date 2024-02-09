@@ -5,6 +5,7 @@ use mpnet_rs::mpnet::{MPNetEmbeddings, MPNetConfig, create_position_ids_from_inp
 
 
 #[test]
+#[cfg(not(feature = "exclude_from_ci"))]
 fn test_model_load() ->Result<()>{
     let HIDDEN_SIZE = 768 as usize;
     let path_to_checkpoints_folder = "D:/RustWorkspace/patentpick/resources/checkpoints/AI-Growth-Lab_PatentSBERTa".to_string();
@@ -25,6 +26,7 @@ fn test_model_load() ->Result<()>{
 }
 
 #[test]
+#[cfg(not(feature = "exclude_from_ci"))]
 fn test_get_embeddings() ->Result<()>{
     let path_to_checkpoints_folder = "D:/RustWorkspace/patentpick/resources/checkpoints/AI-Growth-Lab_PatentSBERTa".to_string();
 
