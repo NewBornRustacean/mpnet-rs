@@ -12,3 +12,6 @@ hf-hub = { version = "0.3.2", features = ["tokio"] }
 serde = { version = "1.0.196", features = ["derive"] }
 tokenizers = "0.15.1"
 serde_json = "1.0.113"
+
+[features]
+exclude_from_ci = []
