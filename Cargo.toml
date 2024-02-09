@@ -2,8 +2,14 @@
 name = "mpnet-rs"
 version = "0.1.0"
 edition = "2021"
+authors = ["NewBronRustacean <huiseomkim@gmail.com>"]
+readme = "README.md"
+description = "This is a translation of MPNet from PyTorch into Rust Candle."
+repository = "https://github.com/NewBornRustacean/mpnet-rs"
+license = "MIT OR Apache-2.0"
+keywords = ["mpnet", "candle", "safetensors", "pytorch"]
+categories = ["development-tools::cargo-plugins"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 candle-core = { git = "https://github.com/huggingface/candle.git", version = "0.4.0" }
