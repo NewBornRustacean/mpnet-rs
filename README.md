@@ -7,8 +7,10 @@
 ## How to use
 ### get trained model
 - download the model from [huggingface](https://huggingface.co/AI-Growth-Lab/PatentSBERTa)
+- Candle v0.4.0 supports loading pytorch_model.bin directly, but v0.3.3 does not support it. 
 - if you want to load model from .safetensors, you have to convert it yourself.
 [this implementation](https://gist.github.com/epicfilemcnulty/1f55fd96b08f8d4d6693293e37b4c55e) might be helpful.
+
 ### load model and weights
 ```rust
 use patentpick::mpnet::load_model;
