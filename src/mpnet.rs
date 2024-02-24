@@ -7,6 +7,7 @@ use candle_nn::{Embedding, LayerNorm, Dropout, VarBuilder, Activation, embedding
 use tokenizers::Tokenizer;
 use serde::{Serialize, Deserialize};
 use serde_json::from_reader;
+use rayon::prelude::*;
 
 /// Loads a model and tokenizer from the specified folder.
 ///
@@ -133,6 +134,45 @@ pub fn get_embeddings(model:&MPNetModel, tokenizer: &Tokenizer, pooler:Option<&M
         None => Ok(embeddings),
     }
 }
+
+/// Computes embeddings for the given sentences in parallel chunks.
+///
+/// This function takes a model, a tokenizer, an optional pooler, a vector of sentences,
+/// and a chunk size, and computes embeddings for the sentences in parallel chunks.
+///
+/// # Arguments
+///
+/// * `model` - A reference to an instance of `MPNetModel`.
+/// * `tokenizer` - A reference to an instance of `Tokenizer`.
+/// * `pooler` - An optional reference to an instance of `MPNetPooler`.
+/// * `sentences` - A reference to a vector of sentences.
+/// * `chunksize` - The size of each chunk for parallel processing.
+///
+/// # Returns
+///
+/// * `Result<Tensor>` - A `Result` which is `Ok` if the embeddings could be computed successfully.
+/// The `Err` variant contains an error message.
+///
+/// # Errors
+///
+/// This function will return an error if the tokenization or the forward pass of the model fails.
+pub fn get_embeddings_parallel(model: &MPNetModel, tokenizer: &Tokenizer, pooler: Option<&MPNetPooler>, sentences:
+&Vec<&str>, chunksize:usize)->Result<Tensor> {
+    let embeddings_chunks: Vec<Tensor> = sentences
+        .chunks(chunksize)
+        .map(|chunk| {
+            let chunk_vec: Vec<&str> = chunk.iter().map(|&s| s).collect(); // Convert &str slice to Vec<&str>
+            let embeddings = get_embeddings(model, tokenizer, pooler, &chunk_vec)?;
+            Ok(embeddings)
+        })
+        .collect::<Result<Vec<Tensor>>>()?;
+
+    // Stack the embeddings from each chunk to form the final result tensor
+    let result = Tensor::cat(&embeddings_chunks, 0)?;
+
+    Ok(result)
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct MPNetConfig {
     _name_or_path: String,

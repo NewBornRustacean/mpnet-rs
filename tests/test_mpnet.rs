@@ -1,7 +1,8 @@
 use candle_core::{DType, Device, Result, Tensor};
 use candle_nn::{VarBuilder,  Module};
 
-use mpnet_rs::mpnet::{MPNetEmbeddings, MPNetConfig, create_position_ids_from_input_ids, cumsum, load_model, get_embeddings, normalize_l2};
+use mpnet_rs::mpnet::{MPNetEmbeddings, MPNetConfig, create_position_ids_from_input_ids, cumsum, load_model,
+                      get_embeddings, get_embeddings_parallel, normalize_l2};
 
 
 #[test]
@@ -63,6 +64,44 @@ fn test_get_embeddings() ->Result<()>{
     for &(score, i, j) in similarities[..5].iter() {
         println!("score: {score:.2} '{}' '{}'", sentences[i], sentences[j])
     }
+
+    Ok(())
+}
+
+#[test]
+#[cfg(not(feature = "exclude_from_ci"))]
+fn test_get_embeddings_parallel() -> Result<()>{
+    let path_to_checkpoints_folder = "D:/RustWorkspace/patentpick/resources/checkpoints/AI-Growth-Lab_PatentSBERTa".to_string();
+
+    let (model, mut tokenizer, pooler) = load_model(path_to_checkpoints_folder).unwrap();
+
+    let sentences = vec![
+        "an invention that targets GLP-1",
+        "new chemical that targets glucagon like peptide-1 ",
+        "de novo chemical that targets GLP-1",
+        "invention about GLP-1 receptor",
+        "new chemical synthesis for glp-1 inhibitors",
+        "It feels like I'm in America",
+        "It's rainy. all day long.",
+        "an invention that targets GLP-1",
+        "new chemical that targets glucagon like peptide-1 ",
+        "de novo chemical that targets GLP-1",
+        "invention about GLP-1 receptor",
+        "new chemical synthesis for glp-1 inhibitors",
+        "It feels like I'm in America",
+        "It's rainy. all day long.",
+        "an invention that targets GLP-1",
+        "new chemical that targets glucagon like peptide-1 ",
+        "de novo chemical that targets GLP-1",
+        "invention about GLP-1 receptor",
+        "new chemical synthesis for glp-1 inhibitors",
+        "It feels like I'm in America",
+        "new chemical synthesis for glp-1 inhibitors",
+    ];
+    let n_sentences = sentences.len();
+    let embeddings = get_embeddings_parallel(&model, &tokenizer, Some(&pooler), &sentences, 10).unwrap();
+
+    println!("pooled embeddings {:?}", embeddings.shape());
 
     Ok(())
 }
