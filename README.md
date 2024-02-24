@@ -4,6 +4,10 @@
 - The trained model I used is PatentSBERTa, which is designed to obtain embeddings optimized for the patent domain. 
 - train pipeline is NOT yet prepared.
 - If you have your own MPNet weights, they can be loaded using this carte.
+## Updates
+### v.0.1.1
+- parallel version for get_embeddings() : get_embedding_parallel()
+
 ## How to use
 ### get trained model
 - download the model from [huggingface](https://huggingface.co/AI-Growth-Lab/PatentSBERTa)
@@ -13,11 +17,11 @@
 
 ### load model and weights
 ```rust
-use patentpick::mpnet::load_model;
+use mpnet_rs::mpnet::load_model;
 let (model, tokenizer, pooler) = load_model("/path/to/model/and/tokenizer").unwrap();
 ```
 ### get embeddings(with pooler): see test function below
-this is about how to get embeddings adn consine similarity 
+this is about how to get embeddings and consine similarity 
 ```rust
 use candle_core::{DType, Device, Result, Tensor};
 use candle_nn::{VarBuilder,  Module};
