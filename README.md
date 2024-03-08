@@ -5,6 +5,8 @@
 - train pipeline is NOT yet prepared.
 - If you have your own MPNet weights, they can be loaded using this carte.
 ## Updates
+### v.0.1.2
+- candle version up: 0.3.3 -> 0.4.1
 ### v.0.1.1
 - parallel version for get_embeddings() : get_embedding_parallel()
 
