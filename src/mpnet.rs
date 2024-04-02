@@ -1,13 +1,13 @@
-use std::path::{Path, PathBuf};
 use std::fs::File;
 use std::io;
+use std::path::{Path, PathBuf};
 
 use candle_core::{shape::Dim, DType, Device, Result, Tensor};
-use candle_nn::{Embedding, LayerNorm, Dropout, VarBuilder, Activation, embedding, layer_norm, Module, Linear, linear};
-use tokenizers::Tokenizer;
-use serde::{Serialize, Deserialize};
-use serde_json::from_reader;
+use candle_nn::{embedding, layer_norm, linear, Activation, Dropout, Embedding, LayerNorm, Linear, Module, VarBuilder};
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
+use serde_json::from_reader;
+use tokenizers::Tokenizer;
 
 /// Loads a model and tokenizer from the specified folder.
 ///
@@ -76,14 +76,14 @@ use rayon::prelude::*;
 /// use patentpick::mpnet::load_model;
 /// let (model, tokenizer, pooler) = load_model("/path/to/model/and/tokenizer").unwrap();
 /// ```
-pub fn load_model(path_to_check_points_folder:String) -> Result<(MPNetModel, Tokenizer, MPNetPooler)>{
+pub fn load_model(path_to_check_points_folder: String) -> Result<(MPNetModel, Tokenizer, MPNetPooler)> {
     // Construct the paths to the weight and tokenizer files
     let path_to_safetensors = Path::new(&path_to_check_points_folder).join("model.safetensors");
     let path_to_tokenizer = Path::new(&path_to_check_points_folder).join("tokenizer.json");
     let path_to_config = Path::new(&path_to_check_points_folder).join("config.json");
 
     // Ensure the paths exist
-    if !path_to_safetensors.exists() || !path_to_tokenizer.exists() || !path_to_config.exists(){
+    if !path_to_safetensors.exists() || !path_to_tokenizer.exists() || !path_to_config.exists() {
         Err::<MPNetModel, _>(io::Error::new(io::ErrorKind::NotFound, "The specified paths do not exist."));
     }
     let weights = candle_core::safetensors::load(&path_to_safetensors, &Device::Cpu)?;
@@ -91,7 +91,7 @@ pub fn load_model(path_to_check_points_folder:String) -> Result<(MPNetModel, Tok
     let config = MPNetConfig::load(&path_to_config)?;
 
     let tokenizer = Tokenizer::from_file(path_to_tokenizer).unwrap();
-    let pooler=MPNetPooler::load(vb.clone(), &PoolingConfig::default())?;
+    let pooler = MPNetPooler::load(vb.clone(), &PoolingConfig::default())?;
     let model = MPNetModel::load(vb, &config)?;
 
     Ok((model, tokenizer, pooler))
@@ -117,8 +117,13 @@ pub fn load_model(path_to_check_points_folder:String) -> Result<(MPNetModel, Tok
 /// # Errors
 ///
 /// This function will return an error if the tokenization or the forward pass of the model fails.
-pub fn get_embeddings(model:&MPNetModel, tokenizer: &Tokenizer, pooler:Option<&MPNetPooler>, sentences: &Vec<&str>) -> Result<Tensor>{
-    let tokens = tokenizer.encode_batch(sentences.clone(), true).unwrap();
+pub fn get_embeddings(
+    model: &MPNetModel,
+    tokenizer: &Tokenizer,
+    pooler: Option<&MPNetPooler>,
+    sentences: &[&str],
+) -> Result<Tensor> {
+    let tokens = tokenizer.encode_batch(sentences.to_vec(), true).unwrap();
     let token_ids = tokens
         .iter()
         .map(|tokens| {
@@ -156,13 +161,17 @@ pub fn get_embeddings(model:&MPNetModel, tokenizer: &Tokenizer, pooler:Option<&M
 /// # Errors
 ///
 /// This function will return an error if the tokenization or the forward pass of the model fails.
-pub fn get_embeddings_parallel(model: &MPNetModel, tokenizer: &Tokenizer, pooler: Option<&MPNetPooler>, sentences:
-&Vec<&str>, chunksize:usize)->Result<Tensor> {
+pub fn get_embeddings_parallel(
+    model: &MPNetModel,
+    tokenizer: &Tokenizer,
+    pooler: Option<&MPNetPooler>,
+    sentences: &[&str],
+    chunksize: usize,
+) -> Result<Tensor> {
     let embeddings_chunks: Vec<Tensor> = sentences
-        .chunks(chunksize)
+        .par_chunks(chunksize)
         .map(|chunk| {
-            let chunk_vec: Vec<&str> = chunk.iter().map(|&s| s).collect(); // Convert &str slice to Vec<&str>
-            let embeddings = get_embeddings(model, tokenizer, pooler, &chunk_vec)?;
+            let embeddings = get_embeddings(model, tokenizer, pooler, chunk)?;
             Ok(embeddings)
         })
         .collect::<Result<Vec<Tensor>>>()?;
@@ -199,7 +208,9 @@ pub struct MPNetConfig {
 impl Default for MPNetConfig {
     fn default() -> Self {
         Self {
-            _name_or_path: "/home/ubuntu/.cache/torch/sentence_transformers/sentence-transformers_multi-qa-mpnet-base-dot-v1/".to_string(),
+            _name_or_path:
+                "/home/ubuntu/.cache/torch/sentence_transformers/sentence-transformers_multi-qa-mpnet-base-dot-v1/"
+                    .to_string(),
             architectures: vec!["MPNetModel".to_string()],
             attention_probs_dropout_prob: 0.1,
             bos_token_id: 0,
@@ -218,7 +229,7 @@ impl Default for MPNetConfig {
             relative_attention_num_buckets: 32,
             torch_dtype: "f64".to_string(),
             transformers_version: "4.11.2".to_string(),
-            vocab_size: 30527
+            vocab_size: 30527,
         }
     }
 }
@@ -236,23 +247,22 @@ impl MPNetConfig {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct PoolingConfig{
+pub struct PoolingConfig {
     word_embedding_dimension: usize,
     pooling_mode_cls_token: bool,
     pooling_mode_mean_tokens: bool,
     pooling_mode_max_tokens: bool,
-    pooling_mode_mean_sqrt_len_tokens: bool
-
+    pooling_mode_mean_sqrt_len_tokens: bool,
 }
 
-impl Default for PoolingConfig{
+impl Default for PoolingConfig {
     fn default() -> Self {
-        Self{
+        Self {
             word_embedding_dimension: 768,
             pooling_mode_cls_token: true,
             pooling_mode_mean_tokens: false,
             pooling_mode_max_tokens: false,
-            pooling_mode_mean_sqrt_len_tokens: false
+            pooling_mode_mean_sqrt_len_tokens: false,
         }
     }
 }
@@ -269,19 +279,16 @@ impl PoolingConfig {
     }
 }
 
-pub struct MPNetPooler{
+pub struct MPNetPooler {
     dense: Linear,
     activation: Activation,
 }
 
-impl MPNetPooler{
+impl MPNetPooler {
     pub fn load(vb: VarBuilder, config: &PoolingConfig) -> Result<Self> {
-        let dense = linear(config.word_embedding_dimension, config.word_embedding_dimension,  vb.pp("pooler.dense"))?;
+        let dense = linear(config.word_embedding_dimension, config.word_embedding_dimension, vb.pp("pooler.dense"))?;
         let activation = Activation::Gelu;
-        Ok(Self {
-            dense,
-            activation,
-        })
+        Ok(Self { dense, activation })
     }
 
     pub fn forward(&self, input_embeddings: &Tensor) -> Result<Tensor> {
@@ -304,12 +311,11 @@ impl MPNetModel {
     pub fn load(vb: VarBuilder, config: &MPNetConfig) -> Result<Self> {
         let (embeddings, encoder) = match (
             MPNetEmbeddings::load(vb.pp("embeddings"), &config), // MPNetEmbeddings(config)
-            MPNetEncoder::load(vb.pp("encoder"), &config), // MPNetEncoder(config)
+            MPNetEncoder::load(vb.pp("encoder"), &config),       // MPNetEncoder(config)
         ) {
             (Ok(embeddings), Ok(encoder)) => (embeddings, encoder),
             (Err(err), _) | (_, Err(err)) => {
-                if let model_type= &config.model_type {
-
+                if let model_type = &config.model_type {
                     if let (Ok(embeddings), Ok(encoder)) = (
                         MPNetEmbeddings::load(vb.pp(&format!("{model_type}.embeddings")), config),
                         MPNetEncoder::load(vb.pp(&format!("{model_type}.encoder")), config),
@@ -321,7 +327,7 @@ impl MPNetModel {
                 } else {
                     return Err(err);
                 }
-            }
+            },
         };
 
         Ok(Self {
@@ -331,15 +337,14 @@ impl MPNetModel {
         })
     }
 
-    pub fn forward(&self, input_ids: &Tensor, is_train:bool) -> Result<Tensor> {
-        let embedding_output = self.embeddings .forward(input_ids, None, None, is_train)?;
+    pub fn forward(&self, input_ids: &Tensor, is_train: bool) -> Result<Tensor> {
+        let embedding_output = self.embeddings.forward(input_ids, None, None, is_train)?;
         let sequence_output = self.encoder.forward(&embedding_output, is_train)?;
         Ok(sequence_output)
     }
 }
 
-
-struct MPNetEncoder{
+struct MPNetEncoder {
     layers: Vec<MPNetLayer>,
     relative_attention_bias: Embedding,
 }
@@ -350,14 +355,18 @@ impl MPNetEncoder {
             .map(|index| MPNetLayer::load(vb.pp(&format!("layer.{index}")), config))
             .collect::<Result<Vec<_>>>()?;
 
-        let relative_attention_bias = embedding(config.relative_attention_num_buckets, config.num_attention_heads,  vb.pp("relative_attention_bias"))?;
+        let relative_attention_bias = embedding(
+            config.relative_attention_num_buckets,
+            config.num_attention_heads,
+            vb.pp("relative_attention_bias"),
+        )?;
         Ok(MPNetEncoder {
             layers,
             relative_attention_bias,
         })
     }
 
-    fn forward(&self, hidden_states: &Tensor, is_train:bool) -> Result<Tensor> {
+    fn forward(&self, hidden_states: &Tensor, is_train: bool) -> Result<Tensor> {
         let mut hidden_states = hidden_states.clone();
 
         //for i, layer_module in enumerate(self.layer):
@@ -388,7 +397,7 @@ impl MPNetLayer {
         })
     }
 
-    fn forward(&self, hidden_states: &Tensor, is_train:bool) -> Result<Tensor> {
+    fn forward(&self, hidden_states: &Tensor, is_train: bool) -> Result<Tensor> {
         let attention_output = self.attention.forward(hidden_states, is_train)?;
         let intermediate_output = self.intermediate.forward(&attention_output)?;
         let layer_output = self
@@ -407,11 +416,7 @@ struct MPNetOutput {
 impl MPNetOutput {
     fn load(vb: VarBuilder, config: &MPNetConfig) -> Result<Self> {
         let dense = linear(config.intermediate_size, config.hidden_size, vb.pp("dense"))?;
-        let layer_norm = layer_norm(
-            config.hidden_size,
-            config.layer_norm_eps,
-            vb.pp("LayerNorm"),
-        )?;
+        let layer_norm = layer_norm(config.hidden_size, config.layer_norm_eps, vb.pp("LayerNorm"))?;
         let dropout = Dropout::new(config.hidden_dropout_prob);
         Ok(Self {
             dense,
@@ -420,7 +425,7 @@ impl MPNetOutput {
         })
     }
 
-    fn forward(&self, hidden_states: &Tensor, input_tensor: &Tensor, is_train:bool) -> Result<Tensor> {
+    fn forward(&self, hidden_states: &Tensor, input_tensor: &Tensor, is_train: bool) -> Result<Tensor> {
         let hidden_states = self.dense.forward(hidden_states)?;
         let hidden_states = self.dropout.forward(&hidden_states, is_train)?;
         self.layer_norm.forward(&(hidden_states + input_tensor)?)
@@ -449,7 +454,7 @@ impl MPNetIntermediate {
     }
 }
 struct MPNetAttention {
-    attn : MPNetSelfAttention,
+    attn: MPNetSelfAttention,
     layer_norm: LayerNorm,
     dropout: Dropout,
 }
@@ -467,7 +472,7 @@ impl MPNetAttention {
         })
     }
 
-    fn forward(&self, hidden_states: &Tensor, is_train:bool) -> Result<Tensor> {
+    fn forward(&self, hidden_states: &Tensor, is_train: bool) -> Result<Tensor> {
         let self_outputs = self.attn.forward(hidden_states, is_train)?;
 
         let dropped = self.dropout.forward(&self_outputs, is_train)?;
@@ -477,7 +482,7 @@ impl MPNetAttention {
     }
 }
 
-pub struct MPNetSelfAttention{
+pub struct MPNetSelfAttention {
     num_attention_heads: usize,
     attention_head_size: usize,
     q: Linear,
@@ -487,11 +492,13 @@ pub struct MPNetSelfAttention{
     dropout: Dropout,
 }
 
-impl MPNetSelfAttention{
-    pub fn load(vb: VarBuilder, config: &MPNetConfig) -> Result<Self>{
+impl MPNetSelfAttention {
+    pub fn load(vb: VarBuilder, config: &MPNetConfig) -> Result<Self> {
         if config.hidden_size % config.num_attention_heads != 0 {
-            panic!("The hidden size ({}) is not a multiple of the number of attention heads ({})",
-                   config.hidden_size, config.num_attention_heads);
+            panic!(
+                "The hidden size ({}) is not a multiple of the number of attention heads ({})",
+                config.hidden_size, config.num_attention_heads
+            );
         }
 
         let num_attention_heads = config.num_attention_heads;
@@ -503,10 +510,10 @@ impl MPNetSelfAttention{
         let q = linear(config.hidden_size, all_head_size, vb.pp("q"))?;
         let k = linear(config.hidden_size, all_head_size, vb.pp("k"))?;
         let v = linear(config.hidden_size, all_head_size, vb.pp("v"))?;
-        let o = linear(config.hidden_size, config.hidden_size,vb.pp("o"))?;
+        let o = linear(config.hidden_size, config.hidden_size, vb.pp("o"))?;
 
-        Ok(Self{
-            num_attention_heads:config.num_attention_heads,
+        Ok(Self {
+            num_attention_heads: config.num_attention_heads,
             attention_head_size,
             q,
             k,
@@ -526,7 +533,7 @@ impl MPNetSelfAttention{
         xs.contiguous()
     }
 
-    fn forward(&self, hidden_states: &Tensor, is_train:bool) -> Result<Tensor> {
+    fn forward(&self, hidden_states: &Tensor, is_train: bool) -> Result<Tensor> {
         let query_layer = self.q.forward(hidden_states)?;
         let key_layer = self.k.forward(hidden_states)?;
         let value_layer = self.v.forward(hidden_states)?;
@@ -537,7 +544,7 @@ impl MPNetSelfAttention{
 
         let attention_scores = query_layer.matmul(&key_layer.t()?)?;
         let attention_scores = (attention_scores / (self.attention_head_size as f64).sqrt())?;
-        let attention_probs = {candle_nn::ops::softmax(&attention_scores, candle_core::D::Minus1)?};
+        let attention_probs = { candle_nn::ops::softmax(&attention_scores, candle_core::D::Minus1)? };
         let attention_probs = self.dropout.forward(&attention_probs, is_train)?;
 
         let context_layer = attention_probs.matmul(&value_layer)?;
@@ -548,8 +555,6 @@ impl MPNetSelfAttention{
         Ok(output)
     }
 }
-
-
 
 pub struct MPNetEmbeddings {
     word_embeddings: Embedding,
@@ -571,8 +576,9 @@ impl MPNetEmbeddings {
     ///
     /// * `Self` - The constructed `MPNetEmbeddings`.
     pub fn load(vb: VarBuilder, config: &MPNetConfig) -> Result<Self> {
-        let word_embeddings = embedding(config.vocab_size, config.hidden_size,  vb.pp("word_embeddings"))?;
-        let position_embeddings = embedding(config.max_position_embeddings, config.hidden_size, vb.pp("position_embeddings"))?;
+        let word_embeddings = embedding(config.vocab_size, config.hidden_size, vb.pp("word_embeddings"))?;
+        let position_embeddings =
+            embedding(config.max_position_embeddings, config.hidden_size, vb.pp("position_embeddings"))?;
         let layer_norm = layer_norm(config.hidden_size, config.layer_norm_eps, vb.pp("LayerNorm"))?;
         let dropout = Dropout::new(config.hidden_dropout_prob);
         let padding_idx = config.pad_token_id;
@@ -598,30 +604,35 @@ impl MPNetEmbeddings {
     /// # Returns
     ///
     /// * `Tensor` - The result tensor after the forward pass.
-    pub fn forward(&self, input_ids: &Tensor, position_ids: Option<&Tensor>, inputs_embeds: Option<&Tensor>, is_train:bool) -> Result<Tensor> {
+    pub fn forward(
+        &self,
+        input_ids: &Tensor,
+        position_ids: Option<&Tensor>,
+        inputs_embeds: Option<&Tensor>,
+        is_train: bool,
+    ) -> Result<Tensor> {
         let position_ids = match position_ids {
             Some(ids) => ids.to_owned(),
             None => {
-                if Option::is_some(&inputs_embeds){
+                if Option::is_some(&inputs_embeds) {
                     let position_ids = self.create_position_ids_from_input_embeds(inputs_embeds.unwrap())?; //
                     position_ids
                 } else {
                     let position_ids = create_position_ids_from_input_ids(input_ids, self.padding_idx)?;
                     position_ids
                 }
-            }
+            },
         };
 
-        let inputs_embeds : Tensor = match inputs_embeds {
+        let inputs_embeds: Tensor = match inputs_embeds {
             Some(embeds) => embeds.to_owned(),
             None => {
                 // self.word_embeddings(input_ids)
                 let embeds = self.word_embeddings.forward(input_ids)?;
                 embeds
-            }
+            },
         };
         let mut embeddings = inputs_embeds;
-
 
         if let Some(position_embeddings) = &self.position_embeddings {
             // embeddings + self.position_embeddings(position_ids)
@@ -634,7 +645,6 @@ impl MPNetEmbeddings {
         let embeddings = self.dropout.forward(&embeddings, is_train)?;
 
         Ok(embeddings)
-
     }
 
     /// Creates position ids from the input embeddings.
@@ -651,20 +661,13 @@ impl MPNetEmbeddings {
         let input_shape = input_embeds.dims3()?;
         let seq_length = input_shape.1;
 
-        let mut position_ids = Tensor::arange(
-            self.padding_idx + 1,
-            seq_length as u32 + self.padding_idx + 1,
-            &Device::Cpu,
-        )?;
+        let mut position_ids =
+            Tensor::arange(self.padding_idx + 1, seq_length as u32 + self.padding_idx + 1, &Device::Cpu)?;
 
-        position_ids = position_ids
-            .unsqueeze(0)?
-            .expand((input_shape.0, input_shape.1))?;
+        position_ids = position_ids.unsqueeze(0)?.expand((input_shape.0, input_shape.1))?;
         Ok(position_ids)
     }
 }
-
-
 
 /// Creates position ids from the input ids.
 ///
@@ -686,7 +689,6 @@ pub fn create_position_ids_from_input_ids(input_ids: &Tensor, padding_idx: u32) 
 
     Ok(incremental_indices)
 }
-
 
 /// Returns the cumulative sum of elements of input in the dimension dim.
 ///
@@ -716,19 +718,24 @@ pub fn normalize_l2(v: &Tensor) -> Result<Tensor> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::any::Any;
     use std::fmt::Pointer;
-    use super::*;
     #[test]
     fn test_transpose_for_scores() {
         let vb = VarBuilder::zeros(DType::F32, &Device::Cpu);
         let config = MPNetConfig::default();
 
         let mpnet_self_attention = MPNetSelfAttention::load(vb, &config).unwrap();
-        let xs = Tensor::randn(0f32, 1f32,(1, 2, config.hidden_size), &Device::Cpu).unwrap();
+        let xs = Tensor::randn(0f32, 1f32, (1, 2, config.hidden_size), &Device::Cpu).unwrap();
 
         let result = mpnet_self_attention.transpose_for_scores(&xs).unwrap();
-        let expected_shape = vec![1, config.num_attention_heads, 2, config.hidden_size/config.num_attention_heads];
+        let expected_shape = vec![
+            1,
+            config.num_attention_heads,
+            2,
+            config.hidden_size / config.num_attention_heads,
+        ];
         assert_eq!(result.shape().dims().to_vec(), expected_shape);
     }
 
@@ -738,7 +745,7 @@ mod tests {
         let config = MPNetConfig::default();
 
         let mpnet_self_attention = MPNetSelfAttention::load(vb, &config).unwrap();
-        let hidden_states = Tensor::randn(0f32, 1f32,(1, 2, config.hidden_size), &Device::Cpu).unwrap();
+        let hidden_states = Tensor::randn(0f32, 1f32, (1, 2, config.hidden_size), &Device::Cpu).unwrap();
 
         let result = mpnet_self_attention.forward(&hidden_states, false);
 
@@ -754,7 +761,7 @@ mod tests {
 
         let mpnet_attention = MPNetAttention::load(vb, &config).unwrap();
 
-        let hidden_states = Tensor::randn(0f32, 1f32,(1, 2, config.hidden_size), &Device::Cpu).unwrap();
+        let hidden_states = Tensor::randn(0f32, 1f32, (1, 2, config.hidden_size), &Device::Cpu).unwrap();
 
         let result = mpnet_attention.forward(&hidden_states, false);
 
@@ -770,7 +777,7 @@ mod tests {
         let config = MPNetConfig::default();
 
         let mpnet_intermediate = MPNetIntermediate::load(vb, &config).unwrap();
-        let hidden_states = Tensor::randn(0f32, 1f32,(1, 2, config.hidden_size), &Device::Cpu).unwrap();
+        let hidden_states = Tensor::randn(0f32, 1f32, (1, 2, config.hidden_size), &Device::Cpu).unwrap();
 
         let result = mpnet_intermediate.forward(&hidden_states);
 
@@ -784,8 +791,8 @@ mod tests {
         let config = MPNetConfig::default();
 
         let mpnet_output = MPNetOutput::load(vb, &config).unwrap();
-        let hidden_states = Tensor::randn(0f32, 1f32,(1, 2, config.intermediate_size), &Device::Cpu).unwrap();
-        let input_tensor = Tensor::randn(0f32, 1f32,(1, 2, config.hidden_size), &Device::Cpu).unwrap();
+        let hidden_states = Tensor::randn(0f32, 1f32, (1, 2, config.intermediate_size), &Device::Cpu).unwrap();
+        let input_tensor = Tensor::randn(0f32, 1f32, (1, 2, config.hidden_size), &Device::Cpu).unwrap();
 
         let result = mpnet_output.forward(&hidden_states, &input_tensor, false);
 
@@ -800,7 +807,7 @@ mod tests {
         let config = MPNetConfig::default();
 
         let mpnet_layer = MPNetLayer::load(vb, &config).unwrap();
-        let hidden_states = Tensor::randn(0f32, 1f32,(10, 32, config.hidden_size), &Device::Cpu).unwrap();
+        let hidden_states = Tensor::randn(0f32, 1f32, (10, 32, config.hidden_size), &Device::Cpu).unwrap();
 
         let result = mpnet_layer.forward(&hidden_states, false);
 
@@ -815,7 +822,7 @@ mod tests {
         let config = MPNetConfig::default();
 
         let encoder = MPNetEncoder::load(vb, &config).unwrap();
-        let hidden_states = Tensor::randn(0f32, 1f32,(10, 32, config.hidden_size), &Device::Cpu).unwrap();
+        let hidden_states = Tensor::randn(0f32, 1f32, (10, 32, config.hidden_size), &Device::Cpu).unwrap();
 
         let result = encoder.forward(&hidden_states, false);
 
