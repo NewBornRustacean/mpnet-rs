@@ -1,15 +1,16 @@
 use candle_core::{DType, Device, Result, Tensor};
-use candle_nn::{VarBuilder,  Module};
+use candle_nn::{Module, VarBuilder};
 
-use mpnet_rs::mpnet::{MPNetEmbeddings, MPNetConfig, create_position_ids_from_input_ids, cumsum, load_model,
-                      get_embeddings, get_embeddings_parallel, normalize_l2};
-
+use mpnet_rs::mpnet::{
+    create_position_ids_from_input_ids, cumsum, get_embeddings, get_embeddings_parallel, load_model, normalize_l2,
+    MPNetConfig, MPNetEmbeddings,
+};
 
 #[test]
 #[cfg(not(feature = "exclude_from_ci"))]
-fn test_model_load() ->Result<()>{
+fn test_model_load() -> Result<()> {
     let HIDDEN_SIZE = 768 as usize;
-    let path_to_checkpoints_folder = "D:/RustWorkspace/patentpick/resources/checkpoints/AI-Growth-Lab_PatentSBERTa".to_string();
+    let path_to_checkpoints_folder = "D:/RustWorkspace/patentpick/resources/AI-Growth-Lab_PatentSBERTa".to_string();
 
     let (model, mut tokenizer, pooler) = load_model(path_to_checkpoints_folder).unwrap();
 
@@ -23,24 +24,19 @@ fn test_model_load() ->Result<()>{
     assert_eq!(output.shape().dims(), &expected_shape);
 
     Ok(())
-
 }
 
 #[test]
 #[cfg(not(feature = "exclude_from_ci"))]
-fn test_get_embeddings() ->Result<()>{
-    let path_to_checkpoints_folder = "D:/RustWorkspace/patentpick/resources/checkpoints/AI-Growth-Lab_PatentSBERTa".to_string();
+fn test_get_embeddings() -> Result<()> {
+    let path_to_checkpoints_folder = "D:/RustWorkspace/patentpick/resources/AI-Growth-Lab_PatentSBERTa".to_string();
 
     let (model, mut tokenizer, pooler) = load_model(path_to_checkpoints_folder).unwrap();
 
     let sentences = vec![
-        "an invention that targets GLP-1",
-        "new chemical that targets glucagon like peptide-1 ",
-        "de novo chemical that targets GLP-1",
-        "invention about GLP-1 receptor",
-        "new chemical synthesis for glp-1 inhibitors",
-        "It feels like I'm in America",
-        "It's rainy. all day long.",
+        "an invention that targets GLP-1", "new chemical that targets glucagon like peptide-1 ",
+        "de novo chemical that targets GLP-1", "invention about GLP-1 receptor",
+        "new chemical synthesis for glp-1 inhibitors", "It feels like I'm in America", "It's rainy. all day long.",
     ];
     let n_sentences = sentences.len();
     let embeddings = get_embeddings(&model, &tokenizer, Some(&pooler), &sentences).unwrap();
@@ -70,38 +66,27 @@ fn test_get_embeddings() ->Result<()>{
 
 #[test]
 #[cfg(not(feature = "exclude_from_ci"))]
-fn test_get_embeddings_parallel() -> Result<()>{
-    let path_to_checkpoints_folder = "D:/RustWorkspace/patentpick/resources/checkpoints/AI-Growth-Lab_PatentSBERTa".to_string();
+fn test_get_embeddings_parallel() -> Result<()> {
+    let path_to_checkpoints_folder = "D:/RustWorkspace/patentpick/resources/AI-Growth-Lab_PatentSBERTa".to_string();
 
     let (model, mut tokenizer, pooler) = load_model(path_to_checkpoints_folder).unwrap();
 
     let sentences = vec![
-        "an invention that targets GLP-1",
-        "new chemical that targets glucagon like peptide-1 ",
-        "de novo chemical that targets GLP-1",
-        "invention about GLP-1 receptor",
-        "new chemical synthesis for glp-1 inhibitors",
-        "It feels like I'm in America",
-        "It's rainy. all day long.",
-        "an invention that targets GLP-1",
-        "new chemical that targets glucagon like peptide-1 ",
-        "de novo chemical that targets GLP-1",
-        "invention about GLP-1 receptor",
-        "new chemical synthesis for glp-1 inhibitors",
-        "It feels like I'm in America",
-        "It's rainy. all day long.",
-        "an invention that targets GLP-1",
-        "new chemical that targets glucagon like peptide-1 ",
-        "de novo chemical that targets GLP-1",
-        "invention about GLP-1 receptor",
-        "new chemical synthesis for glp-1 inhibitors",
-        "It feels like I'm in America",
+        "an invention that targets GLP-1", "new chemical that targets glucagon like peptide-1 ",
+        "de novo chemical that targets GLP-1", "invention about GLP-1 receptor",
+        "new chemical synthesis for glp-1 inhibitors", "It feels like I'm in America", "It's rainy. all day long.",
+        "an invention that targets GLP-1", "new chemical that targets glucagon like peptide-1 ",
+        "de novo chemical that targets GLP-1", "invention about GLP-1 receptor",
+        "new chemical synthesis for glp-1 inhibitors", "It feels like I'm in America", "It's rainy. all day long.",
+        "an invention that targets GLP-1", "new chemical that targets glucagon like peptide-1 ",
+        "de novo chemical that targets GLP-1", "invention about GLP-1 receptor",
+        "new chemical synthesis for glp-1 inhibitors", "It feels like I'm in America",
         "new chemical synthesis for glp-1 inhibitors",
     ];
     let n_sentences = sentences.len();
-    let embeddings = get_embeddings_parallel(&model, &tokenizer, Some(&pooler), &sentences, 10).unwrap();
-
-    println!("pooled embeddings {:?}", embeddings.shape());
+    let _embeddings = get_embeddings_parallel(&model, &tokenizer, Some(&pooler), &sentences, 10).unwrap();
+    let embeddings = _embeddings.to_vec2::<f32>().unwrap();
+    println!("pooled embeddings {:?}", embeddings);
 
     Ok(())
 }
@@ -116,8 +101,18 @@ fn test_create_position_ids_from_input_embeds() -> candle_core::Result<()> {
     let position_ids = embeddings_module.create_position_ids_from_input_embeds(&input_embeds);
 
     let expected_tensor: &[[u32; 4]; 2] = &[
-        [0 + embeddings_module.padding_idx + 1, 1 + embeddings_module.padding_idx + 1, 2 + embeddings_module.padding_idx + 1, 3 + embeddings_module.padding_idx + 1,],
-        [0 + embeddings_module.padding_idx + 1, 1 + embeddings_module.padding_idx + 1, 2 + embeddings_module.padding_idx + 1, 3 + embeddings_module.padding_idx + 1,]
+        [
+            0 + embeddings_module.padding_idx + 1,
+            1 + embeddings_module.padding_idx + 1,
+            2 + embeddings_module.padding_idx + 1,
+            3 + embeddings_module.padding_idx + 1,
+        ],
+        [
+            0 + embeddings_module.padding_idx + 1,
+            1 + embeddings_module.padding_idx + 1,
+            2 + embeddings_module.padding_idx + 1,
+            3 + embeddings_module.padding_idx + 1,
+        ],
     ];
 
     assert_eq!(position_ids.unwrap().to_vec2::<u32>()?, expected_tensor);
@@ -126,7 +121,6 @@ fn test_create_position_ids_from_input_embeds() -> candle_core::Result<()> {
 
 #[test]
 fn test_create_position_ids_from_input_ids() -> candle_core::Result<()> {
-
     let config = MPNetConfig::default();
 
     let vb = VarBuilder::zeros(DType::F32, &Device::Cpu);
@@ -158,5 +152,8 @@ fn test_normalize_l2() {
     let result = normalize_l2(&v).unwrap();
 
     let sum_of_squares = result.sqr().unwrap().sum(1).unwrap();
-    assert!((sum_of_squares.get(0).unwrap().to_vec0::<f32>().unwrap() - 1.0f32).abs() < 1e-5, "The tensor is not normalized");
+    assert!(
+        (sum_of_squares.get(0).unwrap().to_vec0::<f32>().unwrap() - 1.0f32).abs() < 1e-5,
+        "The tensor is not normalized"
+    );
 }
